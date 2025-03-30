@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Animacja Scroll</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 5000px; /* długość scrolla */
+      background: #fff;
+    }
+    canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="frame-canvas" width="1920" height="1080"></canvas>
+
+  <script>
+    const canvas = document.getElementById('frame-canvas');
+    const context = canvas.getContext('2d');
+
+    const totalFrames = 515;
+    const imageSeq = [];
+    const baseURL = '/'; // bo pliki są luzem w katalogu głównym
+
+    const getFrameName = i => `frame_${String(i).padStart(4, '0')}.webp`;
+
+    for (let i = 1; i <= totalFrames; i++) {
+      const img = new Image();
+      img.src = baseURL + getFrameName(i);
+      imageSeq.push(img);
+    }
+
+    function drawFrame(index) {
+      const img = imageSeq[index];
+      if (img && img.complete) {
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(img, 0, 0, canvas.width, canvas.height);
+      }
+    }
+
+    window.addEventListener('scroll', () => {
+      const scrollY = window.scrollY;
+      const maxScroll = document.body.scrollHeight - window.innerHeight;
+      const scrollFraction = scrollY / maxScroll;
+      const frameIndex = Math.min(totalFrames - 1, Math.floor(scrollFraction * totalFrames));
+      drawFrame(frameIndex);
+    });
+
+    imageSeq[0].onload = () => {
+      drawFrame(0);
+    };
+  </script>
+</body>
+</html>
