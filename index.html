@@ -3,11 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <title>Animacja Scroll</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     html, body {
       margin: 0;
       height: 5000px; /* długość scrolla */
-      background: #fff;
+      background: #000;
+      overscroll-behavior: none; /* zapobiega elastycznemu scrollowi na iOS */
     }
     canvas {
       position: fixed;
@@ -20,40 +22,130 @@
   </style>
 </head>
 <body>
-  <canvas id="frame-canvas" width="1920" height="1080"></canvas>
+  <canvas id="frame-canvas"></canvas>
 
   <script>
     const canvas = document.getElementById('frame-canvas');
-    const context = canvas.getContext('2d');
-
+    const context = canvas.getContext('2d', { alpha: false }); // Wyłączenie alpha dla wydajności
+    
+    // Stałe proporcje obrazów 16:9
+    const ASPECT_RATIO = 16/9;
+    
+    // Ustal wymiary canvasa z zachowaniem proporcji
+    function setupCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      
+      // Oblicz współczynniki transformacji raz przy inicjalizacji
+      calculateDrawingParams();
+    }
+    
+    // Parametry rysowania (obliczane raz przy zmianie rozmiaru)
+    let drawParams = {
+      width: 0,
+      height: 0,
+      x: 0,
+      y: 0
+    };
+    
+    function calculateDrawingParams() {
+      const canvasRatio = canvas.width / canvas.height;
+      
+      if (canvasRatio > ASPECT_RATIO) {
+        // Szerszy ekran - dopasuj szerokość
+        drawParams.width = canvas.width;
+        drawParams.height = canvas.width / ASPECT_RATIO;
+        drawParams.x = 0;
+        drawParams.y = (canvas.height - drawParams.height) / 2;
+      } else {
+        // Wyższy ekran - dopasuj wysokość
+        drawParams.height = canvas.height;
+        drawParams.width = canvas.height * ASPECT_RATIO;
+        drawParams.x = (canvas.width - drawParams.width) / 2;
+        drawParams.y = 0;
+      }
+    }
+    
+    // Ustaw canvas przy starcie
+    setupCanvas();
+    
+    // Obsługa zmiany rozmiaru okna i orientacji
+    let resizeTimeout;
+    window.addEventListener('resize', function() {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(function() {
+        setupCanvas();
+        // Narysuj ponownie aktualną klatkę
+        const currentScroll = window.scrollY;
+        const maxScroll = document.body.scrollHeight - window.innerHeight;
+        const scrollFraction = currentScroll / maxScroll;
+        const frameIndex = Math.min(totalFrames - 1, Math.floor(scrollFraction * totalFrames));
+        drawFrame(frameIndex);
+      }, 200);
+    });
+    
     const totalFrames = 515;
-    const imageSeq = [];
-    const baseURL = '/'; // bo pliki są luzem w katalogu głównym
+    const imageSeq = new Array(totalFrames);
+    const baseURL = '/'; // pliki w katalogu głównym
 
     const getFrameName = i => `frame_${String(i).padStart(4, '0')}.webp`;
-
+    
+    // Załaduj wszystkie obrazy
     for (let i = 1; i <= totalFrames; i++) {
       const img = new Image();
       img.src = baseURL + getFrameName(i);
-      imageSeq.push(img);
+      imageSeq[i-1] = img; // Zapisujemy od indeksu 0
     }
-
+    
+    // Zmienne do optymalizacji renderowania
+    let lastFrameIndex = -1;
+    let ticking = false;
+    let lastScrollY = 0;
+    const scrollThreshold = 5; // minimalny scroll w px do aktualizacji
+    
     function drawFrame(index) {
+      // Nie rysuj ponownie tej samej klatki
+      if (index === lastFrameIndex) return;
+      
+      lastFrameIndex = index;
       const img = imageSeq[index];
+      
       if (img && img.complete) {
         context.clearRect(0, 0, canvas.width, canvas.height);
-        context.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        // Użyj wcześniej obliczonych parametrów
+        context.drawImage(
+          img, 
+          drawParams.x, drawParams.y, 
+          drawParams.width, drawParams.height
+        );
       }
     }
-
+    
+    // Optymalizacja obsługi scroll
     window.addEventListener('scroll', () => {
-      const scrollY = window.scrollY;
-      const maxScroll = document.body.scrollHeight - window.innerHeight;
-      const scrollFraction = scrollY / maxScroll;
-      const frameIndex = Math.min(totalFrames - 1, Math.floor(scrollFraction * totalFrames));
-      drawFrame(frameIndex);
-    });
-
+      const currentScrollY = window.scrollY;
+      
+      // Ignoruj małe zmiany scrollowania
+      if (Math.abs(currentScrollY - lastScrollY) < scrollThreshold) return;
+      lastScrollY = currentScrollY;
+      
+      // Użyj requestAnimationFrame dla płynności
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          const scrollY = window.scrollY;
+          const maxScroll = document.body.scrollHeight - window.innerHeight;
+          const scrollFraction = Math.max(0, Math.min(1, scrollY / maxScroll));
+          const frameIndex = Math.min(totalFrames - 1, Math.floor(scrollFraction * totalFrames));
+          
+          drawFrame(frameIndex);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    }, { passive: true });
+    
+    // Rysuj pierwszą klatkę po załadowaniu
     imageSeq[0].onload = () => {
       drawFrame(0);
     };
