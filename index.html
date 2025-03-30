@@ -149,6 +149,23 @@
     imageSeq[0].onload = () => {
       drawFrame(0);
     };
+    // Dodaj do kodu w repozytorium (Vercel)
+
+// Funkcja dodająca prefetch dla kluczowych klatek
+function prefetchKeyFrames() {
+  const keyFrames = [1, 100, 200, 300, 400, 515]; // Kluczowe klatki
+  
+  keyFrames.forEach(frameNum => {
+    const link = document.createElement('link');
+    link.rel = 'prefetch';
+    link.as = 'image';
+    link.href = `${baseURL}${getFrameName(frameNum)}`;
+    document.head.appendChild(link);
+  });
+}
+
+// Wywołaj to przy ładowaniu
+prefetchKeyFrames();
   </script>
 </body>
 </html>
